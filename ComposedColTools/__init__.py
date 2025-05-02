@@ -4,7 +4,7 @@ bl_info = {
     "category": "TimsTools",
     "description": "Composed COL Tools",
     "author": "Tim Richter",
-    "version": (2, 0),
+    "version": (4, 0, 0),
 }
 
 from . import main
