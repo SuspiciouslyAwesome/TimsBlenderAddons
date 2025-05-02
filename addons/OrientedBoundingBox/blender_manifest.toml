@@ -1,6 +1,6 @@
 schema_version = "1.0.0"
 
-id = "tims_composed_col_tools"
+id = "tims_oriented_bbox"
 version = "1.0.0"
 name = "Tim'sOrientedBBOX"
 tagline = "Tim's Oriented BBOX"
