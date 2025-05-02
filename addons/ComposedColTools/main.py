@@ -1,48 +1,38 @@
-bl_info = { 
-    "name": "Tim Composed COL Tools v2",
-    "blender": (3, 4, 0),
-    "category": "TimsTools",
-    "description": "Composed COL Tools v2",
-    "author": "Tim Richter",
-    "version": (2, 0),
-}
-
 import bpy
 
 class CreateEmptyOperator(bpy.types.Operator):
     bl_idname = "object.create_empty"
     bl_label = "Create Root"
-    
+
     def execute(self, context):
         selected_obj = context.active_object
-        
         if selected_obj is None:
             self.report({'WARNING'}, "No active object selected")
             return {'CANCELLED'}
-        
+
         bpy.ops.ed.undo_push(message="Create Empty")
-        
+
         empty = bpy.data.objects.new("Empty", None)
         empty.location = selected_obj.location
-        
+
         for collection in selected_obj.users_collection:
             collection.objects.link(empty)
             break
-        
+
         empty.parent = selected_obj.parent
         selected_obj.parent = empty
-        
+
         if empty.parent:
             empty.name = f"{empty.parent.name}_Composed_COL"
         else:
             empty.name = "Empty_ROOT"
-        
+
         context.view_layer.update()
-        
-        bpy.context.view_layer.objects.active = empty
+
+        context.view_layer.objects.active = empty
         empty.select_set(True)
         selected_obj.select_set(False)
-            
+
         return {'FINISHED'}
 
 class MakeBox(bpy.types.Operator):
@@ -56,9 +46,9 @@ class MakeBox(bpy.types.Operator):
         if not selected_objects:
             self.report({'WARNING'}, "No objects selected.")
             return {'CANCELLED'}
-        
+
         bpy.ops.ed.undo_push(message="Rename to Box")
-        
+
         for obj in selected_objects:
             unused_name = self.find_unused_box_name()
             if unused_name:
@@ -87,9 +77,9 @@ class MakeHull(bpy.types.Operator):
         if not selected_objects:
             self.report({'WARNING'}, "No objects selected.")
             return {'CANCELLED'}
-        
+
         bpy.ops.ed.undo_push(message="Rename to Hull")
-        
+
         for obj in selected_objects:
             unused_name = self.find_unused_hull_name()
             if unused_name:
@@ -122,17 +112,12 @@ class CreateEmptyPanel(bpy.types.Panel):
         row.operator(MakeBox.bl_idname, icon='CUBE')
         row.operator(MakeHull.bl_idname, icon='MESH_ICOSPHERE')
 
+classes = [CreateEmptyOperator, MakeBox, MakeHull, CreateEmptyPanel]
+
 def register():
-    bpy.utils.register_class(CreateEmptyOperator)
-    bpy.utils.register_class(MakeBox)
-    bpy.utils.register_class(MakeHull)
-    bpy.utils.register_class(CreateEmptyPanel)
+    for cls in classes:
+        bpy.utils.register_class(cls)
 
 def unregister():
-    bpy.utils.unregister_class(CreateEmptyOperator)
-    bpy.utils.unregister_class(MakeBox)
-    bpy.utils.unregister_class(MakeHull)
-    bpy.utils.unregister_class(CreateEmptyPanel)
-
-if __name__ == "__main__":
-    register()
+    for cls in reversed(classes):
+        bpy.utils.unregister_class(cls)
