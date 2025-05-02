@@ -4,7 +4,7 @@ import subprocess
 
 class ExportOperator(bpy.types.Operator):
     bl_idname = "object.export_operator"
-    bl_label = "🚀 Export gg"
+    bl_label = "🚀 Export"
     finalFilePath = ""
     finalObj = ""
 
