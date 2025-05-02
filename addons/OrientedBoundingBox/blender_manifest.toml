@@ -2,9 +2,12 @@ schema_version = "1.0.0"
 
 id = "tims_oriented_bbox"
 version = "1.0.0"
-name = "Tim'sOrientedBBOX"
+name = "Tim's Oriented BBOX"
 tagline = "Tim's Oriented BBOX"
 maintainer = "Tim Richter"
 type = "add-on"
 blender_version_min = "4.4.0"
-license = ["SPDXGPL-3.0-or-later",]
+
+license = [
+  "SPDX:GPL-3.0-or-later",
+]
