@@ -1,0 +1,9 @@
+schema_version = "1.0.0"
+
+id = "tims_composed_col_tools"
+version = "1.0.0"
+name = "Tim'sOrientedBBOX"
+tagline = "Tim's Oriented BBOX"
+maintainer = "Tim Richter"
+type = "add-on"
+blender_version_min = "4.4.0"
