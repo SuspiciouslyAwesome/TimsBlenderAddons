@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "tims_better_exporter"
-version = "1.0.0"
+version = "1.7.0"
 name = "Tims Better Exporter"
 tagline = "Tims Better Exporter"
 maintainer = "Tim Richter"

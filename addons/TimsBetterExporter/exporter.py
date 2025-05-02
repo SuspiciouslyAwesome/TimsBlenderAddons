@@ -4,7 +4,7 @@ import subprocess
 
 class ExportOperator(bpy.types.Operator):
     bl_idname = "object.export_operator"
-    bl_label = "🚀 Export"
+    bl_label = "🚀 Export gg"
     finalFilePath = ""
     finalObj = ""
 
@@ -28,37 +28,32 @@ class ExportOperator(bpy.types.Operator):
         bpy.context.view_layer.objects.active = obj
         print("Object set as active")
         try:
-            bpy.ops.export_scene.fbx(filepath=file_path, use_selection=True, use_mesh_modifiers=True, bake_anim=False)
+            bpy.ops.export_scene.fbx(filepath=file_path, use_selection=True, use_mesh_modifiers=True, bake_anim=False, use_tspace=True)
             print("Export successful")
         except Exception as e:
             print(f"Export failed: {str(e)}")
-        obj.location = original_location
+        finally:
+            obj.location = original_location  # Ensure the location is restored even if export fails
 
     def execute(self, context):
         obj = context.object
         if obj is None:
             self.report({'ERROR'}, "No object selected.")
             return {'CANCELLED'}
-
         while obj.parent is not None:
             obj = obj.parent
         print(f"Topmost parent: {obj.name}")
-
         directory_path = context.scene.directory_path
         if not directory_path:
             self.report({'ERROR'}, "Directory path not set. Please set a directory path.")
             return {'CANCELLED'}
-
         # Convert relative path to absolute path if necessary
         if directory_path.startswith('//'):
             directory_path = bpy.path.abspath(directory_path)
-
         # Ensure the directory exists
         os.makedirs(directory_path, exist_ok=True)
-
         file_name = f"{obj.name}.fbx"
         file_path = os.path.join(directory_path, file_name)
-
         # Check if the file exists in the main directory
         if os.path.exists(file_path):
             if not os.access(file_path, os.W_OK):
@@ -81,14 +76,12 @@ class ExportOperator(bpy.types.Operator):
             # If no existing file found, show confirmation dialog
             self.finalObj = obj
             bpy.ops.object.confirm_create_file('INVOKE_DEFAULT', file_path=file_path, obj_name=obj.name)
-
         return {'FINISHED'}
 
 class ConfirmCreateFileOperator(bpy.types.Operator):
     bl_idname = "object.confirm_create_file"
     bl_label = "⚠️ Creating new file:"
     bl_options = {'INTERNAL'}
-
     file_path: bpy.props.StringProperty()
     obj_name: bpy.props.StringProperty()
 
@@ -98,6 +91,8 @@ class ConfirmCreateFileOperator(bpy.types.Operator):
         if obj:
             # Apply transforms and clear animation
             obj.select_set(True)
+            original_location = obj.location.copy()
+            obj.location = (0, 0, 0)
             bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
             if obj.animation_data is not None:
                 obj.animation_data_clear()
@@ -114,17 +109,16 @@ class ConfirmCreateFileOperator(bpy.types.Operator):
                 child.hide_select = False
                 child.hide_render = False
                 child.hide_set(False)
-
             # Write the object to the file
-            original_location = obj.location.copy()
             obj.location = (0, 0, 0)
             bpy.context.view_layer.objects.active = obj
             try:
-                bpy.ops.export_scene.fbx(filepath=self.file_path, use_selection=True, use_mesh_modifiers=True, bake_anim=False)
+                bpy.ops.export_scene.fbx(filepath=self.file_path, use_selection=True, use_mesh_modifiers=True, bake_anim=False, use_tspace=True)
                 self.report({'INFO'}, f"✔️ Creating new file: {self.file_path}")
             except Exception as e:
                 self.report({'ERROR'}, f"Export failed: {str(e)}")
-            obj.location = original_location
+            finally:
+                obj.location = original_location  # Ensure the location is restored even if export fails
         else:
             self.report({'ERROR'}, "Object not found.")
         return {'FINISHED'}
@@ -147,23 +141,19 @@ class OpenExplorerOperator(bpy.types.Operator):
         if not directory_path:
             self.report({'ERROR'}, "Directory path not set. Please set a directory path.")
             return {'CANCELLED'}
-
         # Convert relative path to absolute path if necessary
         if directory_path.startswith('//'):
             directory_path = bpy.path.abspath(directory_path)
-
         # Ensure the directory exists
         if not os.path.exists(directory_path):
             self.report({'ERROR'}, f"Directory does not exist: {directory_path}")
             return {'CANCELLED'}
-
         # Open the directory in Windows Explorer
         try:
             subprocess.Popen(f'explorer "{directory_path}"')
         except Exception as e:
             self.report({'ERROR'}, f"Failed to open directory: {str(e)}")
             return {'CANCELLED'}
-
         return {'FINISHED'}
 
 class ExportPanel(bpy.types.Panel):
