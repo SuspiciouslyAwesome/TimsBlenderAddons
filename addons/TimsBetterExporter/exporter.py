@@ -2,12 +2,6 @@ import bpy
 import os
 import subprocess
 
-bl_info = {
-    "name": "Tims Better Exporter v4",
-    "blender": (2, 80, 0),
-    "category": "TimsTools",
-}
-
 class ExportOperator(bpy.types.Operator):
     bl_idname = "object.export_operator"
     bl_label = "🚀 Export"
@@ -173,7 +167,7 @@ class OpenExplorerOperator(bpy.types.Operator):
         return {'FINISHED'}
 
 class ExportPanel(bpy.types.Panel):
-    bl_label = "Tims Better Exporter v4"
+    bl_label = "Tims Better Exporter"
     bl_idname = "PT_ExportPanel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
@@ -190,19 +184,20 @@ class ExportPanel(bpy.types.Panel):
         # Add the explorer button
         row.operator("object.open_explorer", text="", icon='FOLDER_REDIRECT')
 
+# List of all classes to register
+classes = (
+    ExportOperator,
+    OpenExplorerOperator,
+    ExportPanel,
+    ConfirmCreateFileOperator,
+)
+
 def register():
-    bpy.utils.register_class(ExportOperator)
-    bpy.utils.register_class(OpenExplorerOperator)
-    bpy.utils.register_class(ExportPanel)
-    bpy.utils.register_class(ConfirmCreateFileOperator)
+    for cls in classes:
+        bpy.utils.register_class(cls)
     bpy.types.Scene.directory_path = bpy.props.StringProperty(name="Directory Path", subtype='DIR_PATH')
 
 def unregister():
-    bpy.utils.unregister_class(ExportOperator)
-    bpy.utils.unregister_class(OpenExplorerOperator)
-    bpy.utils.unregister_class(ExportPanel)
-    bpy.utils.unregister_class(ConfirmCreateFileOperator)
+    for cls in reversed(classes):
+        bpy.utils.unregister_class(cls)
     del bpy.types.Scene.directory_path
-
-if __name__ == "__main__":
-    register()
