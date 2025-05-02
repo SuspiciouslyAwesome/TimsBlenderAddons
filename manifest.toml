@@ -1,5 +1,5 @@
 [repository]
-name = "TimsAddons"
+name = "TimsBlenderAddons"
 author = "Tim Richter"
 description = "Collection of Tim's custom Blender addons"
 version = "1.0.0"
