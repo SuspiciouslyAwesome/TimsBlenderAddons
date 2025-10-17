@@ -9,6 +9,10 @@ class ExportOperator(bpy.types.Operator):
     finalObj = ""
 
     def apply_transforms_and_clear_animation(self, obj):
+        # Skip objects not in the current view layer
+        if obj.name not in bpy.context.view_layer.objects:
+            return
+        
         obj.select_set(True)
         bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
         if obj.animation_data is not None:
@@ -104,6 +108,11 @@ class ConfirmCreateFileOperator(bpy.types.Operator):
         # Retrieve the object by name
         obj = bpy.data.objects.get(self.obj_name)
         if obj:
+            # Skip objects not in the current view layer
+            if obj.name not in bpy.context.view_layer.objects:
+                self.report({'ERROR'}, f"Object '{obj.name}' is not in the current view layer.")
+                return {'CANCELLED'}
+            
             # Apply transforms and clear animation
             obj.select_set(True)
             original_location = obj.location.copy()
@@ -116,6 +125,9 @@ class ConfirmCreateFileOperator(bpy.types.Operator):
             obj.hide_render = False
             obj.hide_set(False)
             for child in obj.children:
+                # Skip children not in view layer
+                if child.name not in bpy.context.view_layer.objects:
+                    continue
                 child.select_set(True)
                 bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
                 if child.animation_data is not None:
