@@ -33,27 +33,40 @@ class ExportOperator(bpy.types.Operator):
         except Exception as e:
             print(f"Export failed: {str(e)}")
         finally:
-            obj.location = original_location  # Ensure the location is restored even if export fails
+            obj.location = original_location
 
     def execute(self, context):
+        # Switch to object mode if not already in it
+        if context.mode != 'OBJECT':
+            bpy.ops.object.mode_set(mode='OBJECT')
+        
         obj = context.object
         if obj is None:
             self.report({'ERROR'}, "No object selected.")
             return {'CANCELLED'}
-        while obj.parent is not None:
-            obj = obj.parent
-        print(f"Topmost parent: {obj.name}")
+        
+        # Check if we should use topmost parent
+        if context.scene.use_topmost_parent:
+            while obj.parent is not None:
+                obj = obj.parent
+            print(f"Topmost parent: {obj.name}")
+        else:
+            print(f"Using selected object: {obj.name}")
+        
         directory_path = context.scene.directory_path
         if not directory_path:
             self.report({'ERROR'}, "Directory path not set. Please set a directory path.")
             return {'CANCELLED'}
+        
         # Convert relative path to absolute path if necessary
         if directory_path.startswith('//'):
             directory_path = bpy.path.abspath(directory_path)
+        
         # Ensure the directory exists
         os.makedirs(directory_path, exist_ok=True)
         file_name = f"{obj.name}.fbx"
         file_path = os.path.join(directory_path, file_name)
+        
         # Check if the file exists in the main directory
         if os.path.exists(file_path):
             if not os.access(file_path, os.W_OK):
@@ -73,9 +86,11 @@ class ExportOperator(bpy.types.Operator):
                         self.report({'INFO'}, f"✔️ Updating existing file in subdirectory: {subdirectory_file_path}")
                         self.write_object(obj, subdirectory_file_path)
                         return {'FINISHED'}
+            
             # If no existing file found, show confirmation dialog
             self.finalObj = obj
             bpy.ops.object.confirm_create_file('INVOKE_DEFAULT', file_path=file_path, obj_name=obj.name)
+        
         return {'FINISHED'}
 
 class ConfirmCreateFileOperator(bpy.types.Operator):
@@ -109,6 +124,7 @@ class ConfirmCreateFileOperator(bpy.types.Operator):
                 child.hide_select = False
                 child.hide_render = False
                 child.hide_set(False)
+            
             # Write the object to the file
             obj.location = (0, 0, 0)
             bpy.context.view_layer.objects.active = obj
@@ -118,7 +134,7 @@ class ConfirmCreateFileOperator(bpy.types.Operator):
             except Exception as e:
                 self.report({'ERROR'}, f"Export failed: {str(e)}")
             finally:
-                obj.location = original_location  # Ensure the location is restored even if export fails
+                obj.location = original_location
         else:
             self.report({'ERROR'}, "Object not found.")
         return {'FINISHED'}
@@ -141,19 +157,23 @@ class OpenExplorerOperator(bpy.types.Operator):
         if not directory_path:
             self.report({'ERROR'}, "Directory path not set. Please set a directory path.")
             return {'CANCELLED'}
+        
         # Convert relative path to absolute path if necessary
         if directory_path.startswith('//'):
             directory_path = bpy.path.abspath(directory_path)
+        
         # Ensure the directory exists
         if not os.path.exists(directory_path):
             self.report({'ERROR'}, f"Directory does not exist: {directory_path}")
             return {'CANCELLED'}
+        
         # Open the directory in Windows Explorer
         try:
             subprocess.Popen(f'explorer "{directory_path}"')
         except Exception as e:
             self.report({'ERROR'}, f"Failed to open directory: {str(e)}")
             return {'CANCELLED'}
+        
         return {'FINISHED'}
 
 class ExportPanel(bpy.types.Panel):
@@ -165,14 +185,24 @@ class ExportPanel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        layout.operator("object.export_operator")
-        # Create a row for the directory path and explorer button
+        
+        # Create a row for export button and explorer button
         row = layout.row(align=True)
-        row.prop(context.scene, "directory_path", text="")
-        # Add a small spacer
-        row.separator(factor=1.0)
-        # Add the explorer button
+        row.operator("object.export_operator")
         row.operator("object.open_explorer", text="", icon='FOLDER_REDIRECT')
+        
+        # Add collapsible options section
+        box = layout.box()
+        row = box.row()
+        row.prop(context.scene, "show_export_options",
+                 icon="TRIA_DOWN" if context.scene.show_export_options else "TRIA_RIGHT",
+                 icon_only=True, emboss=False)
+        row.label(text="Options")
+        
+        # Show options when expanded
+        if context.scene.show_export_options:
+            box.prop(context.scene, "directory_path", text="")
+            box.prop(context.scene, "use_topmost_parent", text="Use topmost parent as root")
 
 # List of all classes to register
 classes = (
@@ -185,9 +215,23 @@ classes = (
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
-    bpy.types.Scene.directory_path = bpy.props.StringProperty(name="Directory Path", subtype='DIR_PATH')
+    bpy.types.Scene.directory_path = bpy.props.StringProperty(
+        name="Directory Path", 
+        subtype='DIR_PATH'
+    )
+    bpy.types.Scene.show_export_options = bpy.props.BoolProperty(
+        name="Show Export Options",
+        default=False
+    )
+    bpy.types.Scene.use_topmost_parent = bpy.props.BoolProperty(
+        name="Use Topmost Parent",
+        description="Export the topmost parent of the selected object instead of just the selection",
+        default=True
+    )
 
 def unregister():
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
     del bpy.types.Scene.directory_path
+    del bpy.types.Scene.show_export_options
+    del bpy.types.Scene.use_topmost_parent
