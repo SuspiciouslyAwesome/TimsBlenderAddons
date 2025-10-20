@@ -39,16 +39,8 @@ class ExportOperator(bpy.types.Operator):
         finally:
             obj.location = original_location
 
-    def execute(self, context):
-        # Switch to object mode if not already in it
-        if context.mode != 'OBJECT':
-            bpy.ops.object.mode_set(mode='OBJECT')
-        
-        obj = context.object
-        if obj is None:
-            self.report({'ERROR'}, "No object selected.")
-            return {'CANCELLED'}
-        
+    def export_single_object(self, context, obj):
+        """Export a single object"""
         # Check if we should use topmost parent
         if context.scene.use_topmost_parent:
             while obj.parent is not None:
@@ -60,7 +52,7 @@ class ExportOperator(bpy.types.Operator):
         directory_path = context.scene.directory_path
         if not directory_path:
             self.report({'ERROR'}, "Directory path not set. Please set a directory path.")
-            return {'CANCELLED'}
+            return False
         
         # Convert relative path to absolute path if necessary
         if directory_path.startswith('//'):
@@ -75,25 +67,67 @@ class ExportOperator(bpy.types.Operator):
         if os.path.exists(file_path):
             if not os.access(file_path, os.W_OK):
                 self.report({'ERROR'}, f"⚠️ File exists, but is read-only: {file_path}. Did you forget to check it out?")
-                return {'CANCELLED'}
+                return False
             self.report({'INFO'}, f"✔️ Updating existing file: {file_path}")
             self.write_object(obj, file_path)
         else:
             # File does not exist - Check subdirectories
+            found = False
             for root, dirs, files in os.walk(directory_path):
                 for file in files:
                     if file == file_name:
                         subdirectory_file_path = os.path.join(root, file)
                         if not os.access(subdirectory_file_path, os.W_OK):
                             self.report({'ERROR'}, f"⚠️ File exists, but is read-only: {subdirectory_file_path}. Did you forget to check it out?")
-                            return {'CANCELLED'}
+                            return False
                         self.report({'INFO'}, f"✔️ Updating existing file in subdirectory: {subdirectory_file_path}")
                         self.write_object(obj, subdirectory_file_path)
-                        return {'FINISHED'}
+                        found = True
+                        break
+                if found:
+                    break
             
-            # If no existing file found, show confirmation dialog
-            self.finalObj = obj
-            bpy.ops.object.confirm_create_file('INVOKE_DEFAULT', file_path=file_path, obj_name=obj.name)
+            if not found:
+                # If no existing file found, show confirmation dialog
+                self.finalObj = obj
+                bpy.ops.object.confirm_create_file('INVOKE_DEFAULT', file_path=file_path, obj_name=obj.name)
+        
+        return True
+
+    def execute(self, context):
+        # Switch to object mode if not already in it
+        if context.mode != 'OBJECT':
+            bpy.ops.object.mode_set(mode='OBJECT')
+        
+        # Determine what to export - prioritize scene selection over collection
+        objects_to_export = []
+        
+        # First check for selected objects in the scene
+        selected_objects = [obj for obj in context.selected_objects 
+                           if obj.type in ['MESH', 'EMPTY', 'ARMATURE'] 
+                           and obj.name in context.view_layer.objects]
+        
+        if selected_objects:
+            # Export selected objects
+            objects_to_export = selected_objects
+        elif hasattr(context, 'collection') and context.collection:
+            # Only use collection if no objects are selected in the scene
+            objects_to_export = [obj for obj in context.collection.objects 
+                               if obj.type in ['MESH', 'EMPTY', 'ARMATURE'] 
+                               and obj.name in context.view_layer.objects]
+        
+        if not objects_to_export:
+            self.report({'ERROR'}, "No valid objects to export.")
+            return {'CANCELLED'}
+        
+        # Export each object
+        export_count = 0
+        for obj in objects_to_export:
+            if self.export_single_object(context, obj):
+                export_count += 1
+        
+        if export_count > 0:
+            self.report({'INFO'}, f"✔️ Exported {export_count} object(s)")
         
         return {'FINISHED'}
 
@@ -198,9 +232,34 @@ class ExportPanel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         
+        # Determine button label based on selection - prioritize scene selection
+        selected_objects = [obj for obj in context.selected_objects 
+                           if obj.type in ['MESH', 'EMPTY', 'ARMATURE'] 
+                           and obj.name in context.view_layer.objects]
+        
+        # Determine export button label
+        if len(selected_objects) > 1:
+            # Multiple objects selected in scene
+            export_label = f"🚀 Export {len(selected_objects)}"
+        elif len(selected_objects) == 1:
+            # Single object selected
+            export_label = "🚀 Export"
+        elif hasattr(context, 'collection') and context.collection:
+            # No scene selection, check collection
+            collection_objects = [obj for obj in context.collection.objects 
+                                 if obj.type in ['MESH', 'EMPTY', 'ARMATURE'] 
+                                 and obj.name in context.view_layer.objects]
+            if len(collection_objects) > 0:
+                collection_name = context.collection.name
+                export_label = f"🚀 Export {len(collection_objects)} from  {collection_name}"
+            else:
+                export_label = "🚀 Export"
+        else:
+            export_label = "🚀 Export"
+        
         # Create a row for export button and explorer button
         row = layout.row(align=True)
-        row.operator("object.export_operator")
+        row.operator("object.export_operator", text=export_label)
         row.operator("object.open_explorer", text="", icon='FOLDER_REDIRECT')
         
         # Add collapsible options section
