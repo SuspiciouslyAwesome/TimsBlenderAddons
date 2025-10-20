@@ -25,6 +25,9 @@ class ExportOperator(bpy.types.Operator):
             self.apply_transforms_and_clear_animation(child)
 
     def write_object(self, obj, file_path):
+        # Deselect all objects first
+        bpy.ops.object.select_all(action='DESELECT')
+        
         original_location = obj.location.copy()
         obj.location = (0, 0, 0)
         self.apply_transforms_and_clear_animation(obj)
