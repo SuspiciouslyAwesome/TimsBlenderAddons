@@ -7,3 +7,7 @@
 VERSION 1
 
 efc58776-2979-4242-9525-e46e389f4f78:TimsLibrary:TimsLibrary
+49f84a5d-4f07-4894-8b16-8a105c5b7f07:TimsLibrary/Measure:TimsLibrary-Measure
+99ea714b-326a-4d35-872f-bfa82c42d802:TimsLibrary/Project:TimsLibrary-Project
+19eefb59-5ab9-4c74-9714-49ad2c080ac5:TimsLibrary/Transform:TimsLibrary-Transform
+95933c01-c669-448d-8232-1a096e3626ee:TimsLibrary/Utilities:TimsLibrary-Utilities
