@@ -24,7 +24,7 @@ class ExportOperator(bpy.types.Operator):
         for child in obj.children:
             self.apply_transforms_and_clear_animation(child)
 
-    def write_object(self, obj, file_path):
+    def write_object(self, context, obj, file_path):
         # Deselect all objects first
         bpy.ops.object.select_all(action='DESELECT')
         
@@ -35,7 +35,14 @@ class ExportOperator(bpy.types.Operator):
         bpy.context.view_layer.objects.active = obj
         print("Object set as active")
         try:
-            bpy.ops.export_scene.fbx(filepath=file_path, use_selection=True, use_mesh_modifiers=True, bake_anim=False, use_tspace=True)
+            bpy.ops.export_scene.fbx(
+                filepath=file_path,
+                use_selection=True,
+                use_mesh_modifiers=True,
+                bake_anim=False,
+                use_tspace=True,
+                bake_space_transform=context.scene.apply_transform
+            )
             print("Export successful")
         except Exception as e:
             print(f"Export failed: {str(e)}")
@@ -72,7 +79,7 @@ class ExportOperator(bpy.types.Operator):
                 self.report({'ERROR'}, f"⚠️ File exists, but is read-only: {file_path}. Did you forget to check it out?")
                 return False
             self.report({'INFO'}, f"✔️ Updating existing file: {file_path}")
-            self.write_object(obj, file_path)
+            self.write_object(context, obj, file_path)
         else:
             # File does not exist - Check subdirectories
             found = False
@@ -84,7 +91,7 @@ class ExportOperator(bpy.types.Operator):
                             self.report({'ERROR'}, f"⚠️ File exists, but is read-only: {subdirectory_file_path}. Did you forget to check it out?")
                             return False
                         self.report({'INFO'}, f"✔️ Updating existing file in subdirectory: {subdirectory_file_path}")
-                        self.write_object(obj, subdirectory_file_path)
+                        self.write_object(context, obj, subdirectory_file_path)
                         found = True
                         break
                 if found:
@@ -178,7 +185,14 @@ class ConfirmCreateFileOperator(bpy.types.Operator):
             obj.location = (0, 0, 0)
             bpy.context.view_layer.objects.active = obj
             try:
-                bpy.ops.export_scene.fbx(filepath=self.file_path, use_selection=True, use_mesh_modifiers=True, bake_anim=False, use_tspace=True)
+                bpy.ops.export_scene.fbx(
+                    filepath=self.file_path,
+                    use_selection=True,
+                    use_mesh_modifiers=True,
+                    bake_anim=False,
+                    use_tspace=True,
+                    bake_space_transform=context.scene.apply_transform
+                )
                 self.report({'INFO'}, f"✔️ Creating new file: {self.file_path}")
             except Exception as e:
                 self.report({'ERROR'}, f"Export failed: {str(e)}")
@@ -277,6 +291,7 @@ class ExportPanel(bpy.types.Panel):
         if context.scene.show_export_options:
             box.prop(context.scene, "directory_path", text="")
             box.prop(context.scene, "use_topmost_parent", text="Use topmost parent as root")
+            box.prop(context.scene, "apply_transform", text="Apply Transform")
 
 # List of all classes to register
 classes = (
@@ -302,6 +317,11 @@ def register():
         description="Export the topmost parent of the selected object instead of just the selection",
         default=True
     )
+    bpy.types.Scene.apply_transform = bpy.props.BoolProperty(
+        name="Apply Transform",
+        description="Bake axis conversion into mesh data for Unity compatibility",
+        default=True
+    )
 
 def unregister():
     for cls in reversed(classes):
@@ -309,3 +329,4 @@ def unregister():
     del bpy.types.Scene.directory_path
     del bpy.types.Scene.show_export_options
     del bpy.types.Scene.use_topmost_parent
+    del bpy.types.Scene.apply_transform
