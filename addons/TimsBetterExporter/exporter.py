@@ -41,7 +41,8 @@ class ExportOperator(bpy.types.Operator):
                 use_mesh_modifiers=True,
                 bake_anim=False,
                 use_tspace=True,
-                bake_space_transform=context.scene.apply_transform
+                bake_space_transform=context.scene.apply_transform,
+                colors_type=context.scene.vertex_color_space
             )
             print("Export successful")
         except Exception as e:
@@ -191,7 +192,8 @@ class ConfirmCreateFileOperator(bpy.types.Operator):
                     use_mesh_modifiers=True,
                     bake_anim=False,
                     use_tspace=True,
-                    bake_space_transform=context.scene.apply_transform
+                    bake_space_transform=context.scene.apply_transform,
+                    colors_type=context.scene.vertex_color_space
                 )
                 self.report({'INFO'}, f"✔️ Creating new file: {self.file_path}")
             except Exception as e:
@@ -292,6 +294,7 @@ class ExportPanel(bpy.types.Panel):
             box.prop(context.scene, "directory_path", text="")
             box.prop(context.scene, "use_topmost_parent", text="Use topmost parent as root")
             box.prop(context.scene, "apply_transform", text="Apply Transform")
+            box.prop(context.scene, "vertex_color_space", text="Vertex Colors")
 
 # List of all classes to register
 classes = (
@@ -322,6 +325,16 @@ def register():
         description="Bake axis conversion into mesh data for Unity compatibility",
         default=True
     )
+    bpy.types.Scene.vertex_color_space = bpy.props.EnumProperty(
+        name="Vertex Color Space",
+        description="Color space for vertex colors in the exported FBX",
+        items=[
+            ('SRGB', "sRGB", "Export vertex colors in sRGB color space"),
+            ('LINEAR', "Linear", "Export vertex colors in linear color space"),
+            ('NONE', "None", "Do not export vertex colors"),
+        ],
+        default='SRGB'
+    )
 
 def unregister():
     for cls in reversed(classes):
@@ -330,3 +343,4 @@ def unregister():
     del bpy.types.Scene.show_export_options
     del bpy.types.Scene.use_topmost_parent
     del bpy.types.Scene.apply_transform
+    del bpy.types.Scene.vertex_color_space
