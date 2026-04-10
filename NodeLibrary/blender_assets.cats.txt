@@ -7,6 +7,9 @@
 VERSION 1
 
 efc58776-2979-4242-9525-e46e389f4f78:TimsLibrary:TimsLibrary
+52ae895c-bbc2-4dcd-b76b-68803d33c2e1:TimsLibrary/Materials:TimsLibrary-Materials
 49f84a5d-4f07-4894-8b16-8a105c5b7f07:TimsLibrary/Measure:TimsLibrary-Measure
 99ea714b-326a-4d35-872f-bfa82c42d802:TimsLibrary/Project:TimsLibrary-Project
 95933c01-c669-448d-8232-1a096e3626ee:TimsLibrary/Utilities:TimsLibrary-Utilities
+ad17d086-5f89-453d-88ae-166ff723ad77:TimsLibrary/VertexColor:TimsLibrary-VertexColor
+2d34b73a-d9c7-4432-85e2-21bd2fc83899:TimsTools:TimsTools
