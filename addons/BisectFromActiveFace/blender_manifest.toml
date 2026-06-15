@@ -1,0 +1,25 @@
+schema_version = "1.0.0"
+
+# Unique, lowercase identifier. Must not change once published.
+id = "bisect_from_active_face"
+version = "1.0.0"
+name = "Bisect From Active Face"
+tagline = "Bisect selected geometry using the active face as the cut plane"
+maintainer = "Route 99"
+
+# "add-on" extensions register/unregister Python like a classic addon.
+type = "add-on"
+
+# Searchable tags. Must be from Blender's allowed add-on tag list.
+tags = ["Mesh", "Modeling"]
+
+# Minimum Blender this extension supports. Targets 5.1.1, but the code uses no
+# 5.x-only API, so 4.2 (first version with the extensions platform) is fine.
+blender_version_min = "4.2.0"
+
+# SPDX license identifier(s). GPL is required for code that uses the bpy API.
+license = ["SPDX:GPL-3.0-or-later"]
+
+# Optional metadata — fill in or remove as you like.
+# website = "https://example.com/bisect-from-active-face"
+# copyright = ["2026 Route 99"]
