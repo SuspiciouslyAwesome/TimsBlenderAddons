@@ -1,0 +1,19 @@
+schema_version = "1.0.0"
+
+id = "projected_edge_slicer"
+version = "1.0.0"
+name = "Projected Edge Slicer"
+tagline = "Project the selected edges from the current view and slice the geometry behind them"
+maintainer = "Route 99 <TiRi2501@web.de>"
+type = "add-on"
+
+# Optional: link shown in the extension's preferences panel.
+# website = "https://example.com/projected_edge_slicer"
+
+tags = ["Mesh", "Modeling"]
+
+blender_version_min = "4.2.0"
+
+license = [
+  "SPDX:GPL-3.0-or-later",
+]

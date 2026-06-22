@@ -1,0 +1,21 @@
+schema_version = "1.0.0"
+
+id = "make_active_planar"
+version = "1.0.0"
+name = "Make Active Planar"
+tagline = "Flatten the active face by moving only the active vertex or edge"
+maintainer = "Route 99 <TiRi2501@web.de>"
+type = "add-on"
+
+# Optional: link shown in the extension's preferences panel.
+# website = "https://example.com/make_active_planar"
+
+tags = ["Mesh", "Modeling"]
+
+blender_version_min = "4.2.0"
+
+license = [
+  "SPDX:GPL-3.0-or-later",
+]
+
+# Bundled Python's numpy is provided by Blender, so no wheels are required.
