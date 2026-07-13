@@ -1,0 +1,13 @@
+schema_version = "1.0.0"
+
+id = "tims_work_layers"
+version = "1.0.0"
+name = "Tims Work Layers"
+tagline = "Quickly switch between work-layer collections from the viewport header"
+maintainer = "Tim Richter"
+type = "add-on"
+blender_version_min = "4.4.0"
+
+license = [
+  "SPDX:GPL-3.0-or-later",
+]
