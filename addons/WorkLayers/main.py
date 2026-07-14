@@ -31,6 +31,12 @@ class WorkLayersPreferences(bpy.types.AddonPreferences):
         default='RIGHT',
         update=redraw_view3d_headers,
     )
+    object_mode_only: bpy.props.BoolProperty(
+        name="Object Mode Only",
+        description="Only show the work layer bar in Object Mode to keep the fuller Edit Mode header uncluttered",
+        default=True,
+        update=redraw_view3d_headers,
+    )
     button_width: bpy.props.FloatProperty(
         name="Button Width",
         description="Width per character of the layer buttons (lower = more compact)",
@@ -43,6 +49,7 @@ class WorkLayersPreferences(bpy.types.AddonPreferences):
     def draw(self, context):
         layout = self.layout
         layout.prop(self, "position")
+        layout.prop(self, "object_mode_only")
         layout.prop(self, "button_width")
 
 
@@ -262,23 +269,25 @@ def draw_bar(layout, context):
     row.popover(WORKLAYERS_PT_manage.bl_idname, text="", icon='ADD')
 
 
-def get_position(context):
+def bar_visible_at(context, position):
     prefs = get_prefs(context)
-    return prefs.position if prefs else 'RIGHT'
+    if prefs and prefs.object_mode_only and context.mode != 'OBJECT':
+        return False
+    return (prefs.position if prefs else 'RIGHT') == position
 
 
 def draw_header_left(self, context):
-    if get_position(context) == 'LEFT':
+    if bar_visible_at(context, 'LEFT'):
         draw_bar(self.layout, context)
 
 
 def draw_editor_menus(self, context):
-    if get_position(context) == 'MENUS':
+    if bar_visible_at(context, 'MENUS'):
         draw_bar(self.layout, context)
 
 
 def draw_header_right(self, context):
-    if get_position(context) == 'RIGHT':
+    if bar_visible_at(context, 'RIGHT'):
         draw_bar(self.layout, context)
 
 
