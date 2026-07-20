@@ -1,0 +1,19 @@
+schema_version = "1.0.0"
+
+id = "slice_from_face"
+version = "1.0.0"
+name = "Slice From Face"
+tagline = "Bisect the selected faces or the whole mesh with the active face's plane"
+maintainer = "Route 99 <TiRi2501@web.de>"
+type = "add-on"
+
+# Optional: link shown in the extension's preferences panel.
+# website = "https://example.com/slice_from_face"
+
+tags = ["Mesh", "Modeling"]
+
+blender_version_min = "4.2.0"
+
+license = [
+  "SPDX:GPL-3.0-or-later",
+]
