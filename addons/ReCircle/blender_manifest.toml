@@ -1,0 +1,21 @@
+schema_version = "1.0.0"
+
+id = "recircle"
+version = "1.0.0"
+name = "Re-circle"
+tagline = "Resample a selected edge loop into a flat, regular circle at a new vertex count"
+maintainer = "Route 99 <TiRi2501@web.de>"
+type = "add-on"
+
+# Optional: link shown in the extension's preferences panel.
+# website = "https://example.com/recircle"
+
+tags = ["Mesh", "Modeling"]
+
+blender_version_min = "4.2.0"
+
+license = [
+  "SPDX:GPL-3.0-or-later",
+]
+
+# Bundled Python's numpy is provided by Blender, so no wheels are required.
