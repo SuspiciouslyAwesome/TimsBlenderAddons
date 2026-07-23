@@ -143,45 +143,88 @@ def _edge_dir(face, a, b):
 def orient_new_faces(new_faces):
     """Make freshly built faces agree with each other and with existing geometry.
 
-    Walks each connected component of `new_faces`, flipping neighbours so they
-    stay consistent across shared edges. Each component is seeded from an
-    adjacent pre-existing face when one exists; components with no existing
+    Walks each connected component of `new_faces`, deciding which faces to flip
+    so they stay consistent across shared edges, and anchoring the component to
+    an adjacent pre-existing face when one exists. Components with no existing
     neighbour are returned so the caller can fall back to recalc.
+
+    Crucially, all `normal_flip()` calls happen *after* the graph walk. Flipping
+    a face rewrites the radial cycle of its edges, so flipping mid-iteration of
+    an `edge.link_faces` walk corrupts that iterator into an infinite loop; we
+    decide everything against an up-front winding snapshot instead.
     """
     new_set = set(new_faces)
+    # Snapshot winding so edge-direction lookups stay stable while we plan flips.
+    order = {f: f.verts[:] for f in new_set}
+
+    def edir(f, a, b):
+        vs = order[f]
+        n = len(vs)
+        for k in range(n):
+            if vs[k] is a and vs[(k + 1) % n] is b:
+                return 1
+            if vs[k] is b and vs[(k + 1) % n] is a:
+                return -1
+        return 0
+
+    flip = {}          # face -> should it be flipped (relative to its component)
     visited = set()
     unseeded = []
-
-    def seed(face):
-        # Orient `face` opposite an existing neighbour across a shared edge.
-        for e in face.edges:
-            for g in e.link_faces:
-                if g is face or g in new_set or not g.is_valid:
-                    continue
-                a, b = e.verts
-                if _edge_dir(face, a, b) == _edge_dir(g, a, b):
-                    face.normal_flip()
-                return True
-        return False
 
     for start in new_set:
         if start in visited:
             continue
         visited.add(start)
-        if not seed(start):
-            unseeded.append(start)
+        flip[start] = False
+        comp = [start]
         queue = deque([start])
         while queue:
             f = queue.popleft()
             for e in f.edges:
-                for g in e.link_faces:
+                a, b = e.verts
+                for g in list(e.link_faces):
                     if g is f or g not in new_set or g in visited:
                         continue
-                    a, b = e.verts
-                    if _edge_dir(f, a, b) == _edge_dir(g, a, b):
-                        g.normal_flip()
                     visited.add(g)
+                    # Two faces are consistent iff they traverse the shared edge
+                    # in opposite directions, accounting for f's planned flip.
+                    f_eff = edir(f, a, b) * (-1 if flip[f] else 1)
+                    flip[g] = (edir(g, a, b) == f_eff)
+                    comp.append(g)
                     queue.append(g)
+
+        # Anchor the whole component to any adjacent pre-existing face.
+        anchor_flip = None
+        for f in comp:
+            if anchor_flip is not None:
+                break
+            for e in f.edges:
+                a, b = e.verts
+                found = False
+                for g in e.link_faces:
+                    if g in new_set or not g.is_valid:
+                        continue
+                    g_dir = _edge_dir(g, a, b)
+                    if g_dir == 0:
+                        continue
+                    f_eff = edir(f, a, b) * (-1 if flip[f] else 1)
+                    # Same direction across the edge means the component is
+                    # wound backwards relative to the existing surface.
+                    anchor_flip = (f_eff == g_dir)
+                    found = True
+                    break
+                if found:
+                    break
+        if anchor_flip is None:
+            unseeded.extend(comp)
+        elif anchor_flip:
+            for f in comp:
+                flip[f] = not flip[f]
+
+    # Apply all flips now that no bmesh iterator is live.
+    for f, do in flip.items():
+        if do and f.is_valid:
+            f.normal_flip()
     return unseeded
 
 
