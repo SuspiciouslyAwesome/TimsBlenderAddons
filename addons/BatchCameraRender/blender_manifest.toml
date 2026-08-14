@@ -1,0 +1,13 @@
+schema_version = "1.0.0"
+
+id = "tims_batch_camera_render"
+version = "1.0.0"
+name = "Tims Batch Camera Render"
+tagline = "Render a still from every enabled camera in one go"
+maintainer = "Tim Richter"
+type = "add-on"
+blender_version_min = "4.4.0"
+
+license = [
+  "SPDX:GPL-3.0-or-later",
+]
