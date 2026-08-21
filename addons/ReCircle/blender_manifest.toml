@@ -1,9 +1,9 @@
 schema_version = "1.0.0"
 
 id = "recircle"
-version = "1.0.0"
+version = "1.2.0"
 name = "Re-circle"
-tagline = "Resample a selected edge loop into a flat, regular circle at a new vertex count"
+tagline = "Rebuild edge loops and partial arcs as clean circles"
 maintainer = "Route 99 <TiRi2501@web.de>"
 type = "add-on"
 
