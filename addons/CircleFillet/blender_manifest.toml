@@ -1,0 +1,16 @@
+schema_version = "1.0.0"
+
+id = "circlefillet"
+version = "1.0.0"
+name = "Circle Fillet"
+tagline = "Round a corner vertex with a true circular arc"
+maintainer = "Route 99 <TiRi2501@web.de>"
+type = "add-on"
+
+tags = ["Mesh", "Modeling"]
+
+blender_version_min = "4.2.0"
+
+license = [
+  "SPDX:GPL-3.0-or-later",
+]

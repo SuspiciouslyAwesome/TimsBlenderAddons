@@ -1,0 +1,18 @@
+schema_version = "1.0.0"
+
+id = "meshbudget"
+version = "0.1.0"
+name = "Mesh Budget"
+tagline = "Estimate engine vertex splits and memory use of visible meshes"
+maintainer = "Route 99 <TiRi2501@web.de>"
+type = "add-on"
+
+tags = ["Mesh", "3D View"]
+
+blender_version_min = "4.2.0"
+
+license = [
+  "SPDX:GPL-3.0-or-later",
+]
+
+# Bundled Python's numpy is provided by Blender, so no wheels are required.
