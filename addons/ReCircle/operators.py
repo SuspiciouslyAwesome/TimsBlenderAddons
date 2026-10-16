@@ -36,10 +36,10 @@ from bpy.types import Operator
 from bpy.props import (
     BoolProperty, EnumProperty, FloatProperty, IntProperty, StringProperty,
 )
-from mathutils import Matrix
+from mathutils import Matrix, Vector
 
 from .geometry import (
-    EPS, align_ring, arc_gap_angles, bridge_chain_face_indices,
+    EPS, align_ring, arc_gap_angles, axis_profile, bridge_chain_face_indices,
     bridge_face_indices, circle_frame, circle_positions, fit_circle, fit_plane,
     point_angles, point_at_angle, resample_arc, resample_ring, unwrap_angles,
 )
@@ -62,14 +62,21 @@ def gather_curves(bm):
     return curves, n_bad
 
 
-def circle_of(verts, radius_override=0.0):
+AXES = {'X': Vector((1.0, 0.0, 0.0)),
+        'Y': Vector((0.0, 1.0, 0.0)),
+        'Z': Vector((0.0, 0.0, 1.0))}
+
+
+def circle_of(verts, radius_override=0.0, axis=None, pin_ends=False):
     """Best-fit circle through `verts` as a dict, or None if degenerate.
 
     Keys: center, normal, radius, u, v (the in-plane basis) — plus `fit_radius`,
-    the radius before any override.
+    the radius before any override. `axis` fixes the circle's plane to the one
+    perpendicular to it; `pin_ends` forces the circle through the first and last
+    vertex.
     """
     pts = [v.co.copy() for v in verts]
-    center, normal, radius = fit_circle(pts)
+    center, normal, radius = fit_circle(pts, axis, pin_ends)
     if center is None or normal is None or normal.length < EPS:
         return None
     c, u, v = circle_frame(center, normal)
@@ -258,6 +265,28 @@ Open the redo panel (F9) to choose what to do — on its defaults nothing change
         description="Rotate the new vertices around the circle (closed loops)",
         default=0.0, subtype='ANGLE',
     )
+    constraint_axis: EnumProperty(
+        name="Constraint Axis",
+        description="Fit the circle flat, projected along this axis. "
+                    "Vertices keep their position along it; new vertices "
+                    "interpolate it from their neighbours",
+        items=[
+            ('NONE', "None", "Fit the circle in the best-fit plane"),
+            ('LX', "Local X", "Plane perpendicular to the object's X axis"),
+            ('LY', "Local Y", "Plane perpendicular to the object's Y axis"),
+            ('LZ', "Local Z", "Plane perpendicular to the object's Z axis"),
+            ('GX', "Global X", "Plane perpendicular to the world X axis"),
+            ('GY', "Global Y", "Plane perpendicular to the world Y axis"),
+            ('GZ', "Global Z", "Plane perpendicular to the world Z axis"),
+        ],
+        default='NONE',
+    )
+    lock_ends: BoolProperty(
+        name="Lock Arc Ends",
+        description="Keep an arc's first and last vertex where they are, and "
+                    "fit the circle through them",
+        default=True,
+    )
     use_fit_center: BoolProperty(
         name="Fitted Center",
         description="Use the least-squares circle centre instead of the plain "
@@ -331,6 +360,48 @@ Open the redo panel (F9) to choose what to do — on its defaults nothing change
                 and obj is not None
                 and obj.type == 'MESH')
 
+    # ------------------------------------------------- axis constraint
+
+    def _axis(self):
+        """Unit constraint axis in mesh-local coordinates, or None."""
+        key = self.constraint_axis
+        if key == 'NONE':
+            return None
+        vec = AXES[key[1]]
+        if key[0] == 'G':
+            # A plane with world normal n has local normal M^T n.
+            obj = bpy.context.edit_object
+            if obj is None:
+                return None
+            vec = obj.matrix_world.to_3x3().transposed() @ vec
+            if vec.length < EPS:
+                return None
+            vec = vec.normalized()
+        return vec
+
+    def _lift(self, positions, run, fit, periodic):
+        """Give flat circle `positions` the axis coordinate the run implies.
+
+        Each position takes the run's axis value at its angle round the circle,
+        interpolated between the run's own vertices. No-op without a constraint.
+        Call before the run's vertices are moved or deleted.
+        """
+        axis = self._axis()
+        if axis is None or fit is None or len(run) < 2:
+            return positions
+        c, u, v = fit["center"], fit["u"], fit["v"]
+        profile = axis_profile(point_angles(c, u, v, [p.co for p in run]),
+                               [p.co.dot(axis) for p in run], periodic)
+        out = []
+        for p, a in zip(positions, point_angles(c, u, v, positions)):
+            out.append(p + (profile(a) - p.dot(axis)) * axis)
+        return out
+
+    def _pin(self, p, value):
+        """`p` with its constraint-axis coordinate set to `value`."""
+        axis = self._axis()
+        return p if axis is None else p + (value - p.dot(axis)) * axis
+
     # ------------------------------------------------------------ panel
 
     def draw(self, context):
@@ -355,6 +426,8 @@ Open the redo panel (F9) to choose what to do — on its defaults nothing change
         col = layout.column(align=True)
         col.prop(self, "radius")
         col.prop(self, "offset")
+        col.prop(self, "constraint_axis")
+        col.prop(self, "lock_ends")
         col.prop(self, "use_fit_center")
         sub = col.column()
         sub.active = not self.use_subdivide and self.vertex_count > 0
@@ -392,7 +465,8 @@ Open the redo panel (F9) to choose what to do — on its defaults nothing change
         for curve in curves:
             if len(curve["verts"]) < 3:
                 continue
-            fit = circle_of(curve["verts"], self.radius)
+            fit = circle_of(curve["verts"], self.radius, self._axis(),
+                            pin_ends=self.lock_ends and not curve["closed"])
             if fit is None:
                 continue
             entries.append({"verts": curve["verts"], "closed": curve["closed"],
@@ -562,18 +636,26 @@ Open the redo panel (F9) to choose what to do — on its defaults nothing change
                                         fit["radius"], a)
                          for a in point_angles(fit["center"], fit["u"],
                                                fit["v"], [v.co for v in run])]
-        for v, p in zip(run, positions):
-            v.co = p
+        axis = self._axis()
+        pairs = list(zip(run, positions))
+        if not entry["closed"] and self.lock_ends:
+            pairs = pairs[1:-1]
+        for v, p in pairs:
+            # Same vertex, same order: it keeps its own axis coordinate.
+            v.co = p if axis is None else self._pin(p, v.co.dot(axis))
 
     def _center_for(self, verts):
         """(centroid, normal, center) — centre may be the least-squares one."""
+        axis = self._axis()
         pts = [v.co for v in verts]
         centroid, normal = fit_plane(pts)
+        if axis is not None:
+            normal = axis
         if normal is None or normal.length < EPS:
             return None, None, None
         center = centroid
         if self.use_fit_center:
-            fit = circle_of(verts)
+            fit = circle_of(verts, axis=axis)
             if fit is not None:
                 center, normal = fit["center"], fit["normal"]
         return centroid, normal, center
@@ -605,9 +687,10 @@ Open the redo panel (F9) to choose what to do — on its defaults nothing change
             return None
         _, angles = sweep_of(fit, run)
         gap = arc_gap_angles(angles, entry.get("gap_count", 0))
-        new = [bm.verts.new(point_at_angle(fit["center"], fit["u"], fit["v"],
-                                           fit["radius"], a))
-               for a in gap]
+        gap_pos = [point_at_angle(fit["center"], fit["u"], fit["v"],
+                                  fit["radius"], a) for a in gap]
+        new = [bm.verts.new(p)
+               for p in self._lift(gap_pos, run, fit, periodic=True)]
         chain = [run[-1]] + new + [run[0]]
         for a, b in zip(chain, chain[1:]):
             if a is not b and edge_between(a, b) is None:
@@ -735,9 +818,15 @@ Open the redo panel (F9) to choose what to do — on its defaults nothing change
             # this picks the short way round even across the +/-pi seam.
             delta = (b_ang - a_ang + math.pi) % (2.0 * math.pi) - math.pi
             steps = len(inner) + 1
+            axis = self._axis()
             for k, vert in enumerate(inner):
-                vert.co = point_at_angle(c, u, v, fit["radius"],
-                                         a_ang + delta * (k + 1) / steps)
+                p = point_at_angle(c, u, v, fit["radius"],
+                                   a_ang + delta * (k + 1) / steps)
+                if axis is not None:
+                    t = (k + 1) / steps
+                    p = self._pin(p, a.co.dot(axis) * (1.0 - t)
+                                  + b.co.dot(axis) * t)
+                vert.co = p
             merged += inner
             added += len(inner)
         if not entry["closed"]:
@@ -765,6 +854,10 @@ Open the redo panel (F9) to choose what to do — on its defaults nothing change
                 centroid, normal, [v.co.copy() for v in loop], target,
                 radius=self.radius, offset=self.offset, center=center,
             )
+            if self._axis() is not None:
+                positions = self._lift(
+                    positions, loop,
+                    circle_of(loop, axis=self._axis()), periodic=True)
             loopset = set(loop)
             faces = set()
             for e in cycle_edges(loop):
@@ -864,6 +957,7 @@ Open the redo panel (F9) to choose what to do — on its defaults nothing change
         positions = circle_positions(fit["center"], fit["normal"], count,
                                      start_angle=angles[0] + winding * self.offset,
                                      radius=fit["radius"], winding=winding)
+        positions = self._lift(positions, run, fit, periodic=True)
         bmesh.ops.delete(bm, geom=[v for v in run if v.is_valid], context='VERTS')
         ring = [bm.verts.new(p) for p in positions]
         for i in range(count):
@@ -878,6 +972,7 @@ Open the redo panel (F9) to choose what to do — on its defaults nothing change
                                     radius=fit["radius"])
         if len(positions) < 2:
             return None
+        positions = self._lift(positions, run, fit, periodic=False)
         first, last = run[0], run[-1]
         interior = [v for v in run[1:-1] if v.is_valid]
         if interior:
@@ -910,6 +1005,7 @@ Open the redo panel (F9) to choose what to do — on its defaults nothing change
                                     radius=fit["radius"])
         if len(positions) < 2:
             return None
+        positions = self._lift(positions, run, fit, periodic=False)
 
         runset = set(run)
         patch, seen = [], set()

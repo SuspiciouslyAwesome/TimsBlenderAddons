@@ -2,53 +2,77 @@ import bpy
 import os
 import subprocess
 
+def export_hierarchy(op, context, obj, file_path):
+    """Export obj and all its descendants to FBX without modifying the scene.
+
+    Transforms are NOT applied: every object keeps its own location/rotation/scale,
+    so mirror/bevel modifiers and child offsets survive. Only the root is moved to
+    the world origin during the export (so the file is origin-relative); everything
+    that is changed temporarily (root location, visibility, selection) is restored.
+    """
+    view_layer = context.view_layer
+    objects = [obj] + [c for c in obj.children_recursive if c.name in view_layer.objects]
+
+    saved_state = [(o, o.hide_viewport, o.hide_select, o.hide_get()) for o in objects]
+    saved_selection = [o for o in context.selected_objects]
+    saved_active = view_layer.objects.active
+    saved_location = obj.location.copy()
+
+    try:
+        for o in objects:
+            o.hide_viewport = False
+            o.hide_select = False
+            o.hide_set(False)
+
+        bpy.ops.object.select_all(action='DESELECT')
+        for o in objects:
+            try:
+                o.select_set(True)
+            except RuntimeError:
+                pass  # not selectable (e.g. hidden collection)
+        view_layer.objects.active = obj
+
+        # Only the root is recentred; its rotation/scale and all children stay untouched.
+        # A parented root keeps its local transform (location is relative to the parent).
+        if obj.parent is None:
+            obj.location = (0, 0, 0)
+            context.view_layer.update()
+
+        bpy.ops.export_scene.fbx(
+            filepath=file_path,
+            use_selection=True,
+            use_mesh_modifiers=True,
+            bake_anim=False,
+            use_tspace=True,
+            bake_space_transform=context.scene.apply_transform,
+            colors_type=context.scene.vertex_color_space
+        )
+        return True
+    except Exception as e:
+        op.report({'ERROR'}, f"Export failed: {str(e)}")
+        return False
+    finally:
+        obj.location = saved_location
+        for o, hide_vp, hide_sel, hidden in saved_state:
+            o.hide_viewport = hide_vp
+            o.hide_select = hide_sel
+            o.hide_set(hidden)
+        bpy.ops.object.select_all(action='DESELECT')
+        for o in saved_selection:
+            try:
+                o.select_set(True)
+            except (RuntimeError, ReferenceError):
+                pass
+        view_layer.objects.active = saved_active
+
 class ExportOperator(bpy.types.Operator):
     bl_idname = "object.export_operator"
     bl_label = "🚀 Export"
     finalFilePath = ""
     finalObj = ""
 
-    def apply_transforms_and_clear_animation(self, obj):
-        # Skip objects not in the current view layer
-        if obj.name not in bpy.context.view_layer.objects:
-            return
-        
-        obj.select_set(True)
-        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
-        if obj.animation_data is not None:
-            obj.animation_data_clear()
-        obj.hide_viewport = False
-        obj.hide_select = False
-        obj.hide_render = False
-        obj.hide_set(False)
-        for child in obj.children:
-            self.apply_transforms_and_clear_animation(child)
-
     def write_object(self, context, obj, file_path):
-        # Deselect all objects first
-        bpy.ops.object.select_all(action='DESELECT')
-        
-        original_location = obj.location.copy()
-        obj.location = (0, 0, 0)
-        self.apply_transforms_and_clear_animation(obj)
-        print("Transforms and animation cleared")
-        bpy.context.view_layer.objects.active = obj
-        print("Object set as active")
-        try:
-            bpy.ops.export_scene.fbx(
-                filepath=file_path,
-                use_selection=True,
-                use_mesh_modifiers=True,
-                bake_anim=False,
-                use_tspace=True,
-                bake_space_transform=context.scene.apply_transform,
-                colors_type=context.scene.vertex_color_space
-            )
-            print("Export successful")
-        except Exception as e:
-            print(f"Export failed: {str(e)}")
-        finally:
-            obj.location = original_location
+        return export_hierarchy(self, context, obj, file_path)
 
     def export_single_object(self, context, obj):
         """Export a single object"""
@@ -150,58 +174,15 @@ class ConfirmCreateFileOperator(bpy.types.Operator):
     obj_name: bpy.props.StringProperty()
 
     def execute(self, context):
-        # Retrieve the object by name
         obj = bpy.data.objects.get(self.obj_name)
-        if obj:
-            # Skip objects not in the current view layer
-            if obj.name not in bpy.context.view_layer.objects:
-                self.report({'ERROR'}, f"Object '{obj.name}' is not in the current view layer.")
-                return {'CANCELLED'}
-            
-            # Apply transforms and clear animation
-            obj.select_set(True)
-            original_location = obj.location.copy()
-            obj.location = (0, 0, 0)
-            bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
-            if obj.animation_data is not None:
-                obj.animation_data_clear()
-            obj.hide_viewport = False
-            obj.hide_select = False
-            obj.hide_render = False
-            obj.hide_set(False)
-            for child in obj.children:
-                # Skip children not in view layer
-                if child.name not in bpy.context.view_layer.objects:
-                    continue
-                child.select_set(True)
-                bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
-                if child.animation_data is not None:
-                    child.animation_data_clear()
-                child.hide_viewport = False
-                child.hide_select = False
-                child.hide_render = False
-                child.hide_set(False)
-            
-            # Write the object to the file
-            obj.location = (0, 0, 0)
-            bpy.context.view_layer.objects.active = obj
-            try:
-                bpy.ops.export_scene.fbx(
-                    filepath=self.file_path,
-                    use_selection=True,
-                    use_mesh_modifiers=True,
-                    bake_anim=False,
-                    use_tspace=True,
-                    bake_space_transform=context.scene.apply_transform,
-                    colors_type=context.scene.vertex_color_space
-                )
-                self.report({'INFO'}, f"✔️ Creating new file: {self.file_path}")
-            except Exception as e:
-                self.report({'ERROR'}, f"Export failed: {str(e)}")
-            finally:
-                obj.location = original_location
-        else:
+        if not obj:
             self.report({'ERROR'}, "Object not found.")
+            return {'CANCELLED'}
+        if obj.name not in context.view_layer.objects:
+            self.report({'ERROR'}, f"Object '{obj.name}' is not in the current view layer.")
+            return {'CANCELLED'}
+        if export_hierarchy(self, context, obj, self.file_path):
+            self.report({'INFO'}, f"✔️ Creating new file: {self.file_path}")
         return {'FINISHED'}
 
     def invoke(self, context, event):

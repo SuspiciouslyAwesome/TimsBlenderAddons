@@ -45,10 +45,43 @@ def plane_basis(normal):
 
 # ------------------------------------------------------------- circle fitting
 
-def fit_circle(points):
+def _pinned_center(xy):
+    """Centre (cx, cy) of the least-squares circle through the first and last
+    of the 2D points `xy`, or None when that is degenerate.
+
+    The centre lies on the perpendicular bisector of the end points,
+    c = m + t*d, and the algebraic residual of every point is linear in t, so
+    t has a closed form.
+    """
+    a, b = xy[0], xy[-1]
+    chord = b - a
+    length = float(np.hypot(chord[0], chord[1]))
+    if length < EPS:
+        return None
+    m = (a + b) / 2.0
+    d = np.array([-chord[1], chord[0]]) / length
+    rel = xy - m
+    q = rel @ d
+    e = np.sum(rel * rel, axis=1) - (length / 2.0) ** 2
+    denom = 2.0 * float(np.sum(q * q))
+    if denom < EPS * length * length:
+        return None
+    t = float(np.sum(q * e)) / denom
+    c = m + t * d
+    return float(c[0]), float(c[1])
+
+
+def fit_circle(points, axis=None, pin_ends=False):
     """Best-fit circle through `points`, for full loops *and* partial arcs.
 
     Returns (center: Vector | None, normal: Vector | None, radius: float).
+
+    With `axis` given, the plane is fixed to the one perpendicular to it: the
+    points are flattened along `axis` for the fit, and the centre sits at their
+    mean position along it.
+
+    With `pin_ends`, the circle is forced through the first and last point (the
+    points must be in walk order) and fitted to the rest in between.
 
     Two stages: a best-fit plane (SVD), then an algebraic (Kasa) least-squares
     circle inside that plane. Unlike "centroid + mean radius" this stays correct
@@ -62,7 +95,11 @@ def fit_circle(points):
     if len(pts) < 3:
         return None, None, 0.0
 
-    centroid, normal = fit_plane(pts)
+    if axis is not None:
+        centroid = Vector(np.asarray(pts, dtype=np.float64).mean(axis=0))
+        normal = Vector(axis)
+    else:
+        centroid, normal = fit_plane(pts)
     if normal is None or normal.length < EPS:
         return None, None, 0.0
     n = Vector(normal).normalized()
@@ -77,16 +114,21 @@ def fit_circle(points):
         r = float(np.mean(np.hypot(x, y))) if len(x) else 0.0
         return Vector(centroid), n, r
 
-    # Kasa fit: solve  A*cx + B*cy + C = x^2 + y^2  in the least-squares sense.
-    A = np.column_stack([x, y, np.ones(len(x))])
-    rhs = x * x + y * y
-    try:
-        sol, *_ = np.linalg.lstsq(A, rhs, rcond=None)
-    except np.linalg.LinAlgError:
-        return _fallback()
-
-    cx, cy = sol[0] / 2.0, sol[1] / 2.0
-    r_sq = sol[2] + cx * cx + cy * cy
+    pinned = _pinned_center(xy) if pin_ends else None
+    if pinned is not None:
+        cx, cy = pinned
+        r_sq = (x[0] - cx) ** 2 + (y[0] - cy) ** 2
+    else:
+        # Kasa fit: solve  A*cx + B*cy + C = x^2 + y^2  in the least-squares
+        # sense.
+        A = np.column_stack([x, y, np.ones(len(x))])
+        rhs = x * x + y * y
+        try:
+            sol, *_ = np.linalg.lstsq(A, rhs, rcond=None)
+        except np.linalg.LinAlgError:
+            return _fallback()
+        cx, cy = sol[0] / 2.0, sol[1] / 2.0
+        r_sq = sol[2] + cx * cx + cy * cy
     if not np.isfinite(r_sq) or r_sq <= 0.0:
         return _fallback()
     radius = math.sqrt(r_sq)
@@ -136,6 +178,33 @@ def unwrap_angles(angles):
         d = (float(a) - out[-1] + math.pi) % (2.0 * math.pi) - math.pi
         out.append(out[-1] + d)
     return out
+
+
+def axis_profile(angles, values, periodic):
+    """Function angle -> value, linearly interpolating `values` given at `angles`.
+
+    Used to carry a constrained axis coordinate onto freshly placed points.
+    `periodic` wraps around the full circle (closed loops, or an arc being
+    completed); otherwise the angles are an open arc (unwrapped, in walk order)
+    and the ends clamp.
+    """
+    full = 2.0 * math.pi
+    if periodic:
+        a = np.mod(np.asarray(angles, dtype=np.float64), full)
+        order = np.argsort(a)
+        a, vals = a[order], np.asarray(values, dtype=np.float64)[order]
+        return lambda x: float(np.interp(x % full, a, vals, period=full))
+
+    a = np.asarray(unwrap_angles(angles), dtype=np.float64)
+    order = np.argsort(a)
+    a, vals = a[order], np.asarray(values, dtype=np.float64)[order]
+    mid = 0.5 * (a[0] + a[-1])
+
+    def at(x):
+        # Pick the 2*pi-shifted copy of x nearest the arc's middle.
+        x = x + full * round((mid - x) / full)
+        return float(np.interp(x, a, vals))
+    return at
 
 
 def point_at_angle(center, u, v, radius, angle):
